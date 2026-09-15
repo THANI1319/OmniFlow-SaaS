@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { Bot, Mail, X, Zap, Link as LinkIcon, Activity, BrainCircuit, Search, MessageSquare, Slack, Trello, Cpu, Play } from 'lucide-react';
+import { Bot, Mail, X, Zap, Link as LinkIcon, Activity, BrainCircuit, Search, MessageSquare, Cpu, Play, MessageCircle, ClipboardList } from 'lucide-react';
 import axios from 'axios';
 
 export default function OmniFlowOriginal() {
@@ -76,8 +76,8 @@ export default function OmniFlowOriginal() {
   };
 
   const getAppIcon = (app) => {
-    if(app?.toLowerCase() === 'slack') return <Slack className="w-6 h-6"/>;
-    if(app?.toLowerCase() === 'jira') return <Trello className="w-6 h-6"/>;
+    if(app?.toLowerCase() === 'slack') return <MessageCircle className="w-6 h-6"/>;
+    if(app?.toLowerCase() === 'jira') return <ClipboardList className="w-6 h-6"/>;
     if(app?.toLowerCase() === 'error') return <X className="w-6 h-6"/>;
     return <Mail className="w-6 h-6"/>;
   };
@@ -85,7 +85,7 @@ export default function OmniFlowOriginal() {
   return (
     <div className="flex h-screen bg-[#030305] text-white font-sans overflow-hidden">
       
-      {/* ================= LEFT SIDEBAR (PAZHAIYA DESIGN) ================= */}
+      {/* ================= LEFT SIDEBAR ================= */}
       <aside className="w-64 h-full bg-[#08080C] border-r border-white/5 flex flex-col z-40 hidden md:flex">
         <div className="p-6 flex items-center text-orange-500 font-bold text-2xl tracking-wider mb-8">
           <Zap className="w-8 h-8 mr-2 fill-orange-500" /> OMNIFLOW
@@ -117,11 +117,10 @@ export default function OmniFlowOriginal() {
 
         <div className="p-8 flex-1 max-w-5xl mx-auto w-full pb-24">
           
-          {/* VIEW 1: COMMAND CENTER (GLOWING INPUT + CARDS) */}
+          {/* VIEW 1: COMMAND CENTER */}
           {activeTab === 'Command Center' && (
             <div className="space-y-8 animate-fade-in">
               
-              {/* Feature: Smart Quick Templates */}
               <div className="flex space-x-3 overflow-x-auto pb-2 custom-scrollbar">
                 <button onClick={() => runWorkflow("Send daily status report via Gmail")} className="bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full text-xs text-gray-300 flex items-center whitespace-nowrap"><Play className="w-3 h-3 mr-2 text-orange-400"/> Send Daily Report</button>
                 <button onClick={() => runWorkflow("Create Jira ticket for server bug and notify Slack")} className="bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full text-xs text-gray-300 flex items-center whitespace-nowrap"><Play className="w-3 h-3 mr-2 text-blue-400"/> Jira + Slack Alert</button>
@@ -170,8 +169,8 @@ export default function OmniFlowOriginal() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
               {[
                 { name: 'Gmail', icon: <Mail className="w-8 h-8 text-red-400"/>, color: 'red', desc: 'App Password for SMTP' },
-                { name: 'Slack', icon: <Slack className="w-8 h-8 text-purple-400"/>, color: 'purple', desc: 'Bot OAuth Token' },
-                { name: 'Jira', icon: <Trello className="w-8 h-8 text-blue-400"/>, color: 'blue', desc: 'API Access Token' }
+                { name: 'Slack', icon: <MessageCircle className="w-8 h-8 text-purple-400"/>, color: 'purple', desc: 'Bot OAuth Token' },
+                { name: 'Jira', icon: <ClipboardList className="w-8 h-8 text-blue-400"/>, color: 'blue', desc: 'API Access Token' }
               ].map(app => (
                 <div key={app.name} className="bg-[#0a0a0f] border border-white/10 p-6 rounded-2xl">
                   <div className="flex items-center mb-4">
@@ -212,10 +211,9 @@ export default function OmniFlowOriginal() {
         </div>
       </main>
 
-      {/* ================= RIGHT SIDEBAR (ORIGINAL LIVE FEED + METRICS) ================= */}
+      {/* ================= RIGHT SIDEBAR ================= */}
       <aside className="w-[320px] h-full bg-[#08080C] border-l border-white/5 flex flex-col z-20 hidden xl:flex">
         
-        {/* Live Activity Feed */}
         <div className="p-6 flex-1 flex flex-col border-b border-white/5">
           <h3 className="text-gray-400 text-xs font-bold tracking-widest uppercase mb-6 flex items-center"><Activity className="w-4 h-4 mr-2"/> Live Activity</h3>
           <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar">
@@ -233,7 +231,6 @@ export default function OmniFlowOriginal() {
           </div>
         </div>
 
-        {/* Feature: Token & Resource Tracker */}
         <div className="p-6">
            <div className="flex justify-between items-center mb-4">
              <h3 className="text-gray-400 text-xs font-bold tracking-widest uppercase">System Metrics</h3>
