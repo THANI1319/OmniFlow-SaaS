@@ -1,318 +1,416 @@
 "use client";
 
-import { useState } from 'react';
-import { Bot, Mail, Menu, X, Zap, Link as LinkIcon, Activity, Database, BrainCircuit, Search, ChevronRight, MessageCircle, ClipboardList, Play, CheckCircle2 } from 'lucide-react';
-import axios from 'axios';
+import { useState, useEffect } from "react";
+import axios from "axios";
+import { 
+  Home, Share2, BrainCircuit, Blocks, Activity, BarChart2, Settings, 
+  Search, Mic, HelpCircle, Bell, Sparkles, Mail, Layout, Hash, 
+  Calendar, CheckCircle2, ChevronRight, MessageSquare, Loader2, Link2, MessageCircle, ClipboardList
+} from "lucide-react";
 
-export default function OmniFlowDashboard() {
-  const [activeTab, setActiveTab] = useState('Command Center');
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  
-  // Command Center States
-  const [userPrompt, setUserPrompt] = useState('');
+export default function OmniFlowPremium() {
+  const [activeTab, setActiveTab] = useState("Command Center");
+  const [prompt, setPrompt] = useState("");
+  const [loading, setLoading] = useState(false);
   const [workflowData, setWorkflowData] = useState(null);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [errorMsg, setErrorMsg] = useState(null);
+  
+  // App connection states
+  const [connectedApps, setConnectedApps] = useState({
+    Gmail: true,
+    Slack: false,
+    Notion: false,
+    Calendar: true
+  });
 
-  // App Connections State (Expanded for Multi-App)
-  const [credentials, setCredentials] = useState({ gmail: '', slack: '', jira: '' });
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [connectStatus, setConnectStatus] = useState(null);
+  // Modal State Variables
+  const [showConnectModal, setShowConnectModal] = useState(false);
+  const [emailInput, setEmailInput] = useState("");
+  const [passInput, setPassInput] = useState("");
 
-  // AI Chat States
-  const [chatInput, setChatInput] = useState('');
-  const [chatLog, setChatLog] = useState([{ role: 'ai', text: 'Hi boss, OmniFlow engine ready. Enna automate pannanum?' }]);
+  // Live Activity Feed State (Persistent)
+  const [liveFeed, setLiveFeed] = useState([
+    { title: "Urgent email received", desc: "From: manager@company.com", time: "2m ago", bg: "bg-red-500", icon: <Mail className="text-white w-4 h-4" /> },
+    { title: "Jira task created", desc: "PROJ-1287", time: "2m ago", bg: "bg-blue-500", icon: <Layout className="text-white w-4 h-4" /> },
+    { title: "Slack notified", desc: "#urgent-alerts", time: "3m ago", bg: "bg-yellow-500", icon: <Hash className="text-white w-4 h-4" /> }
+  ]);
 
-  // Unga AWS API Gateway URL
-  const API_URL = "https://cugogf03w2.execute-api.ap-south-1.amazonaws.com/dev/generate-workflow";
-  const USER_ID = "111923IT01056"; 
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('omniflow_live_feed');
+      if (saved) setLiveFeed(JSON.parse(saved));
+    } catch (e) {}
+  }, []);
 
-  // ================= ACTIONS =================
-  const runWorkflow = async (overridePrompt = null) => {
-    const promptToRun = overridePrompt || userPrompt;
-    if (!promptToRun) return;
+  const addFeedItem = (title, desc, bg, icon) => {
+    setLiveFeed(prev => {
+      const updated = [{ title, desc, time: "Just now", bg, icon }, ...prev].slice(0, 10);
+      try { localStorage.setItem('omniflow_live_feed', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
+  };
+
+  // Update aana Generate function (Connected to AWS Lambda & Gemini)
+  const handleGenerate = async () => {
+    if (!prompt.trim()) return;
+    setLoading(true);
+    setWorkflowData(null);
+    addFeedItem("AI Orchestration Started", prompt.substring(0, 25) + "...", "bg-purple-500", <BrainCircuit className="text-white w-4 h-4"/>);
     
-    setIsGenerating(true);
-    setErrorMsg(null);
     try {
-      const response = await axios.post(API_URL, { 
-        action: "generate", 
-        userPrompt: promptToRun, 
-        userId: USER_ID 
+      const response = await axios.post(
+        "https://cugogf03w2.execute-api.ap-south-1.amazonaws.com/dev/generate-workflow",
+        JSON.stringify({ action: "generate", userId: "111923IT01056", userPrompt: prompt }),
+        { headers: { "Content-Type": "application/json" } }
+      );
+      const plan = response.data.plan.workflows;
+      setWorkflowData(plan);
+      plan.forEach(step => {
+        addFeedItem(`${step.app} Action Triggered`, step.action.replace(/_/g, " "), "bg-green-500", <CheckCircle2 className="text-white w-4 h-4"/>);
       });
-      if (response.data.error) {
-        setErrorMsg(response.data.message || "Execution Failed");
-        setWorkflowData([{ step: 1, app: "error", action: response.data.message }]);
-      } else {
-        setWorkflowData(response.data.plan.workflows);
-      }
     } catch (err) {
-      setErrorMsg("Network Error: Could not connect to AWS backend.");
-      setWorkflowData([{ step: 1, app: "error", action: "Network Error: API Gateway failed" }]);
+      console.error(err);
+      addFeedItem("Execution Failed", "AWS Gateway connection error", "bg-red-500", <X className="text-white w-4 h-4"/>);
+    } finally {
+      setLoading(false);
     }
-    setIsGenerating(false);
   };
 
-  const handleConnect = async (e, appName, tokenVal) => {
-    e.preventDefault();
-    setIsConnecting(true);
-    setConnectStatus({ app: appName, type: 'loading' });
+  // Connect API Call to DynamoDB
+  const handleConnect = async () => {
     try {
-      await axios.post(API_URL, {
-        action: "connect_app",
-        userId: USER_ID,
-        app: appName,
-        token: tokenVal
-      });
-      setConnectStatus({ app: appName, type: 'success', text: `${appName} connected to DynamoDB!` });
+      await axios.post(
+        "https://cugogf03w2.execute-api.ap-south-1.amazonaws.com/dev/generate-workflow",
+        JSON.stringify({ 
+          action: "connect_app", 
+          userId: "111923IT01056", 
+          email: emailInput, 
+          appPassword: passInput 
+        }),
+        { headers: { "Content-Type": "application/json" } }
+      );
+      setConnectedApps({ ...connectedApps, Gmail: true });
+      setShowConnectModal(false);
+      addFeedItem("Gmail Connected", "DynamoDB Synced Successfully", "bg-green-500", <Mail className="text-white w-4 h-4"/>);
+      alert("Gmail Connected to DynamoDB Successfully! 🚀");
     } catch (err) {
-      setConnectStatus({ app: appName, type: 'error', text: 'Failed to connect.' });
+      alert("Failed to connect app");
     }
-    setIsConnecting(false);
   };
 
-  const sendChatMessage = () => {
-    if(!chatInput) return;
-    const currentInput = chatInput;
-    setChatLog(prev => [...prev, { role: 'user', text: currentInput }]);
-    setTimeout(() => {
-      setChatLog(prev => [...prev, { role: 'ai', text: `Analyzing "${currentInput}"... Redirecting to Command Center.` }]);
-      setUserPrompt(currentInput);
-      setActiveTab('Command Center');
-      setTimeout(() => runWorkflow(currentInput), 500);
-    }, 1000);
-    setChatInput('');
+  const getAppIcon = (appName) => {
+    const name = appName.toLowerCase();
+    if (name.includes("gmail") || name.includes("email")) return <Mail className="text-red-400" />;
+    if (name.includes("jira") || name.includes("notion")) return <Layout className="text-blue-400" />;
+    if (name.includes("slack")) return <Hash className="text-yellow-400" />;
+    if (name.includes("calendar")) return <Calendar className="text-blue-500" />;
+    return <Sparkles className="text-purple-400" />;
   };
-
-  const getAppIcon = (app) => {
-    if(app?.toLowerCase() === 'slack') return <MessageCircle className="w-6 h-6"/>;
-    if(app?.toLowerCase() === 'jira') return <ClipboardList className="w-6 h-6"/>;
-    if(app?.toLowerCase() === 'error') return <X className="w-6 h-6"/>;
-    return <Mail className="w-6 h-6"/>;
-  };
-
-  // ================= UI COMPONENTS =================
-  const menuItems = [
-    { name: 'Command Center', icon: <Bot className="w-5 h-5 mr-3" /> },
-    { name: 'Connections', icon: <LinkIcon className="w-5 h-5 mr-3" /> },
-    { name: 'OmniChat AI', icon: <BrainCircuit className="w-5 h-5 mr-3" /> },
-    { name: 'Analytics', icon: <Activity className="w-5 h-5 mr-3" /> },
-  ];
 
   return (
-    <div className="flex h-screen bg-[#030305] text-white overflow-hidden font-sans">
+    <div className="flex h-screen bg-[#05050A] text-gray-200 font-sans overflow-hidden selection:bg-purple-500/30">
       
-      {/* MOBILE HEADER */}
-      <div className="md:hidden flex items-center justify-between p-4 border-b border-white/10 bg-[#08080C] z-50 w-full fixed top-0">
-        <div className="flex items-center text-orange-500 font-bold text-xl tracking-wider">
-          <Zap className="w-6 h-6 mr-2 fill-orange-500" />
-          OMNIFLOW
-        </div>
-        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-gray-400 focus:outline-none">
-          {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
-      </div>
-
-      {/* SIDEBAR (Responsive) */}
-      <aside className={`fixed md:relative top-0 left-0 w-64 h-full bg-[#08080C] border-r border-white/5 flex flex-col z-40 transform transition-transform duration-300 ease-in-out pt-16 md:pt-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
-        <div className="p-6 hidden md:flex items-center text-orange-500 font-bold text-2xl tracking-wider mb-8">
-          <Zap className="w-8 h-8 mr-2 fill-orange-500" />
-          OMNIFLOW
+      {/* ================= LEFT SIDEBAR (FIXED) ================= */}
+      <aside className="w-[260px] h-full flex flex-col border-r border-white/5 bg-white/[0.02] backdrop-blur-3xl z-20 hidden md:flex">
+        <div className="p-6 flex items-center space-x-3">
+          <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 via-pink-500 to-orange-500 shadow-[0_0_20px_rgba(168,85,247,0.4)]">
+            <BrainCircuit className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold tracking-wide text-white">OmniFlow</h1>
+            <p className="text-[10px] text-gray-400 font-medium">One command. Infinite workflows.</p>
+          </div>
         </div>
 
-        <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
-          {menuItems.map((item) => (
-            <button 
-              key={item.name}
-              onClick={() => { setActiveTab(item.name); setIsMobileMenuOpen(false); }}
-              className={`w-full flex items-center p-3 rounded-xl transition-all duration-300 ${activeTab === item.name ? 'bg-orange-500/10 text-orange-400 shadow-[inset_4px_0_0_0_#f97316]' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}
-            >
-              {item.icon}
-              <span className="font-medium">{item.name}</span>
-            </button>
-          ))}
+        <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto custom-scrollbar">
+          <NavItem icon={<Home />} label="Command Center" active={activeTab === "Command Center"} onClick={() => setActiveTab("Command Center")} />
+          <NavItem icon={<Share2 />} label="My Workflows" active={activeTab === "My Workflows"} onClick={() => setActiveTab("My Workflows")} />
+          <NavItem icon={<Blocks />} label="Connections" active={activeTab === "Connections"} onClick={() => setActiveTab("Connections")} />
+          <NavItem icon={<Layout />} label="Templates" active={activeTab === "Templates"} onClick={() => setActiveTab("Templates")} />
+          <NavItem icon={<Activity />} label="Activity" active={activeTab === "Activity"} onClick={() => setActiveTab("Activity")} />
+          <NavItem icon={<Settings />} label="Settings" active={activeTab === "Settings"} onClick={() => setActiveTab("Settings")} />
         </nav>
+
+        {/* Automation Power Widget */}
+        <div className="px-4 py-4">
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-4 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/20 blur-2xl rounded-full"></div>
+            <h3 className="text-xs font-medium text-gray-400 mb-4">Automation Power</h3>
+            <div className="flex justify-center mb-2 relative">
+              <svg className="w-20 h-20 transform -rotate-90">
+                <circle cx="40" cy="40" r="36" fill="transparent" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
+                <circle cx="40" cy="40" r="36" fill="transparent" stroke="url(#gradient)" strokeWidth="8" strokeDasharray="226" strokeDashoffset="25" strokeLinecap="round" />
+                <defs>
+                  <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#A855F7" />
+                    <stop offset="100%" stopColor="#F97316" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-xl font-bold text-white">89%</span>
+              </div>
+            </div>
+            <p className="text-[10px] text-center text-gray-400">Tasks automated this month</p>
+          </div>
+        </div>
+
+        {/* Profile */}
+        <div className="p-4 border-t border-white/5">
+          <div className="flex items-center space-x-3 bg-white/5 p-3 rounded-xl border border-white/5 cursor-pointer hover:bg-white/10 transition-colors">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-500 flex items-center justify-center font-bold text-white text-sm shadow-lg">TV</div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-white">Thanigaivel V.</p>
+              <p className="text-[10px] text-purple-400 font-medium">Pro Plan</p>
+            </div>
+          </div>
+        </div>
       </aside>
 
-      {/* MAIN CONTENT AREA */}
-      <main className="flex-1 flex flex-col relative pt-16 md:pt-0 h-full overflow-y-auto">
-        <header className="p-6 md:p-8 flex items-center justify-between z-10 sticky top-0 bg-[#030305]/90 backdrop-blur-md">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-light text-white tracking-wide">{activeTab}</h1>
-            <p className="text-gray-400 text-sm mt-1">{activeTab === 'Command Center' ? 'Describe your workflow and let AI orchestrate it.' : 'Manage your real-time integrations.'}</p>
+      {/* ================= CENTER MAIN (DYNAMIC) ================= */}
+      <main className="flex-1 flex flex-col relative overflow-y-auto overflow-x-hidden custom-scrollbar">
+        
+        {/* Top Navbar */}
+        <header className="h-20 flex items-center justify-between px-8 z-20 border-b border-white/5">
+          <div className="relative w-full max-w-xl">
+            <Mic className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-400" />
+            <input 
+              type="text" 
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
+              placeholder="Tell OmniFlow what you want to automate..."
+              className="w-full bg-[#0F0F16] border border-white/10 rounded-full py-3 pl-12 pr-12 text-sm focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 shadow-inner text-white placeholder-gray-500 transition-all"
+            />
+            {loading ? (
+              <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-500 animate-spin" />
+            ) : (
+              <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 cursor-pointer hover:text-purple-400" onClick={handleGenerate} />
+            )}
+          </div>
+          <div className="flex items-center space-x-4">
+            <button onClick={() => setActiveTab("Command Center")} className="flex items-center space-x-2 bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 text-white px-5 py-2.5 rounded-full font-medium shadow-[0_0_15px_rgba(236,72,153,0.3)] hover:opacity-90">
+              <Sparkles className="w-4 h-4" /><span>New Workflow</span>
+            </button>
           </div>
         </header>
 
-        <div className="p-6 md:p-8 flex-1 max-w-5xl mx-auto w-full pb-24 md:pb-8">
+        {/* Dynamic Content based on Tabs */}
+        <div className="px-8 pb-8 pt-6 z-10 space-y-8 flex-1">
           
           {/* TAB 1: COMMAND CENTER */}
-          {activeTab === 'Command Center' && (
-            <div className="space-y-8 animate-fade-in">
-              
-              {/* Feature: Quick Templates Added Here */}
-              <div className="flex space-x-3 overflow-x-auto pb-2 custom-scrollbar">
-                <button onClick={() => runWorkflow("Send daily status report via Gmail")} className="bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full text-xs text-gray-300 flex items-center whitespace-nowrap border border-white/10"><Play className="w-3 h-3 mr-2 text-orange-400"/> Send Daily Report</button>
-                <button onClick={() => runWorkflow("Create Jira ticket for server bug and notify Slack")} className="bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full text-xs text-gray-300 flex items-center whitespace-nowrap border border-white/10"><Play className="w-3 h-3 mr-2 text-blue-400"/> Jira + Slack Alert</button>
+          {activeTab === "Command Center" && (
+            <div className="animate-in fade-in duration-500">
+              <div className="mb-6">
+                <h3 className="text-purple-400 text-xs font-bold tracking-[0.2em] uppercase mb-2">Command Center</h3>
+                <h2 className="text-4xl font-semibold text-white">What shall we <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-500">automate</span> today?</h2>
               </div>
 
-              <div className="relative group">
-                <div className="absolute -inset-1 bg-gradient-to-r from-orange-600 to-purple-600 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
-                <div className="relative bg-[#0a0a0f] border border-white/10 rounded-2xl p-2 flex items-center">
-                  <div className="p-3 bg-white/5 rounded-xl ml-1"><Search className="w-5 h-5 text-gray-400" /></div>
-                  <input 
-                    type="text" 
-                    value={userPrompt}
-                    onChange={(e) => setUserPrompt(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && runWorkflow()}
-                    placeholder="E.g., Send an urgent email to HOD..." 
-                    className="flex-1 bg-transparent border-none text-white px-4 py-4 focus:outline-none focus:ring-0 placeholder-gray-500 text-lg md:text-base"
-                  />
-                  <button 
-                    onClick={() => runWorkflow()}
-                    disabled={isGenerating}
-                    className="bg-orange-500 hover:bg-orange-600 text-white px-6 md:px-8 py-3 rounded-xl font-medium transition-all shadow-lg flex items-center"
-                  >
-                    {isGenerating ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : 'Generate'}
-                  </button>
+              {/* Hero Section */}
+              <div className="grid grid-cols-12 gap-6 bg-[#0B0B12] border border-white/10 rounded-3xl p-8 relative overflow-hidden mb-8">
+                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-purple-600/20 blur-[120px] rounded-full pointer-events-none -translate-y-1/2 translate-x-1/3"></div>
+                
+                <div className="col-span-5 flex flex-col justify-center relative z-10">
+                  <div className="text-6xl text-white/10 font-serif absolute -top-8 -left-4">"</div>
+                  <p className="text-2xl text-gray-200 leading-relaxed font-light mb-8">
+                    {prompt || "Whenever my manager sends an email with 'urgent', create a Jira task, notify Slack, and block my calendar."}
+                  </p>
+                </div>
+
+                <div className="col-span-7 flex justify-center items-center relative h-[300px]">
+                  <div className={`relative z-20 w-32 h-32 rounded-full bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-purple-900/80 via-purple-900/20 to-transparent flex items-center justify-center border ${loading ? 'border-pink-500 shadow-[0_0_80px_rgba(236,72,153,0.8)]' : 'border-purple-500/30 shadow-[0_0_50px_rgba(168,85,247,0.5)]'} transition-all duration-500`}>
+                    <BrainCircuit className={`w-16 h-16 ${loading ? 'text-white animate-pulse' : 'text-pink-400'} drop-shadow-[0_0_10px_rgba(236,72,153,0.8)]`} />
+                  </div>
+                  <div className={`absolute w-[280px] h-[280px] border border-white/5 rounded-full ${loading ? 'animate-[spin_10s_linear_infinite]' : 'animate-[spin_40s_linear_infinite]'}`}>
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-red-500 p-2 rounded-xl border border-white/20"><Mail className="w-5 h-5 text-white" /></div>
+                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 bg-blue-600 p-2 rounded-xl border border-white/20"><Layout className="w-5 h-5 text-white" /></div>
+                  </div>
+                  <div className={`absolute w-[400px] h-[400px] border border-white/[0.03] rounded-full ${loading ? 'animate-[spin_15s_linear_infinite_reverse]' : 'animate-[spin_60s_linear_infinite_reverse]'}`}>
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 bg-green-500 p-2 rounded-xl"><MessageSquare className="w-5 h-5 text-white" /></div>
+                    <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 bg-orange-500 p-2 rounded-xl"><Calendar className="w-5 h-5 text-white" /></div>
+                  </div>
                 </div>
               </div>
 
-              {/* Execution Cards */}
-              {workflowData && (
-                <div className="mt-8 space-y-4">
-                  <h3 className="text-gray-400 text-sm font-bold tracking-widest uppercase mb-4">Execution Blueprint</h3>
-                  {workflowData.map((step, idx) => (
-                    <div key={idx} className={`p-5 rounded-2xl border flex flex-col md:flex-row md:items-center ${step.app === 'error' ? 'bg-red-500/10 border-red-500/30' : 'bg-[#0a0a0f] border-white/5'}`}>
-                      <div className="flex items-center mb-4 md:mb-0 md:w-1/4">
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center mr-4 ${step.app === 'error' ? 'bg-red-500/20 text-red-400' : 'bg-orange-500/20 text-orange-400'}`}>
-                          {getAppIcon(step.app)}
-                        </div>
-                        <div>
-                          <div className="text-xs text-gray-500 font-bold uppercase tracking-wider">Step {step.step || idx+1}</div>
-                          <div className="text-white font-medium capitalize">{step.app}</div>
-                        </div>
+              {/* Dynamic Workflow Blueprint Section */}
+              <div>
+                <h3 className="text-gray-400 text-xs font-bold tracking-widest uppercase mb-4">Workflow Blueprint</h3>
+                <div className="flex items-center space-x-2 overflow-x-auto custom-scrollbar pb-2">
+                  {workflowData ? (
+                    workflowData.map((step, index) => (
+                      <div key={index} className="flex items-center">
+                        <NodeCard icon={getAppIcon(step.app)} app={step.app} action={step.action.replace(/_/g, " ")} badge={`0${step.step || index+1}`} />
+                        {index !== workflowData.length - 1 && <Arrow />}
                       </div>
-                      <div className="flex-1 px-4 text-gray-300 text-sm md:text-base">
-                        <p><span className="text-gray-500">Action:</span> {step.action}</p>
-                        {step.details?.to && <p><span className="text-gray-500">Target:</span> {step.details.to}</p>}
-                      </div>
-                      <div className="mt-4 md:mt-0 flex items-center text-green-400 text-sm font-medium bg-green-400/10 px-3 py-1 rounded-full w-max">
-                        <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
-                        {step.app === 'error' ? 'Failed' : 'Executed'}
-                      </div>
+                    ))
+                  ) : (
+                    <>
+                      <NodeCard icon={<Mail className="text-red-400" />} app="Gmail" action="Manager sends email with 'urgent'" badge="01" />
+                      <Arrow /><NodeCard icon={<Layout className="text-blue-400" />} app="Jira" action="Create a new task" badge="02" />
+                      <Arrow /><NodeCard icon={<Hash className="text-yellow-400" />} app="Slack" action="Notify in #urgent-alerts" badge="03" />
+                      <Arrow /><NodeCard icon={<Calendar className="text-blue-500" />} app="Calendar" action="Block time on calendar" badge="04" />
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: CONNECTIONS */}
+          {activeTab === "Connections" && (
+            <div className="animate-in fade-in duration-500">
+              <div className="mb-8">
+                <h3 className="text-purple-400 text-xs font-bold tracking-[0.2em] uppercase mb-2">Integrations</h3>
+                <h2 className="text-3xl font-semibold text-white">App Connections</h2>
+                <p className="text-gray-400 mt-2">Connect your favorite apps to allow OmniFlow to automate tasks on your behalf securely via DynamoDB.</p>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div onClick={() => setShowConnectModal(true)} className="cursor-pointer transform hover:scale-105 transition-transform duration-300">
+                   <AppConnectCard icon={<Mail className="w-8 h-8 text-red-500" />} name="Gmail" connected={connectedApps.Gmail} />
+                </div>
+                <div onClick={() => setConnectedApps({...connectedApps, Calendar: !connectedApps.Calendar})} className="cursor-pointer">
+                  <AppConnectCard icon={<Calendar className="w-8 h-8 text-blue-500" />} name="Google Calendar" connected={connectedApps.Calendar} />
+                </div>
+                <div onClick={() => setConnectedApps({...connectedApps, Slack: !connectedApps.Slack})} className="cursor-pointer">
+                  <AppConnectCard icon={<Hash className="w-8 h-8 text-yellow-500" />} name="Slack" connected={connectedApps.Slack} />
+                </div>
+                <div onClick={() => setConnectedApps({...connectedApps, Notion: !connectedApps.Notion})} className="cursor-pointer">
+                  <AppConnectCard icon={<Layout className="w-8 h-8 text-blue-400" />} name="Notion" connected={connectedApps.Notion} />
+                </div>
+              </div>
+
+              {/* Modal for Gmail Connection */}
+              {showConnectModal && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-200">
+                  <div className="bg-[#111116] p-8 rounded-2xl border border-purple-500/30 w-96 shadow-[0_0_40px_rgba(168,85,247,0.2)] animate-in zoom-in-95 duration-200">
+                    <h3 className="text-xl font-bold text-white mb-1">Connect Gmail</h3>
+                    <p className="text-xs text-gray-400 mb-5">Enter details to sync with DynamoDB</p>
+                    
+                    <input 
+                      type="email" 
+                      placeholder="Gmail ID (e.g. 2323059@saec.ac.in)" 
+                      className="w-full bg-[#05050A] border border-white/10 rounded-lg p-3 mb-3 text-white focus:border-purple-500/50 outline-none transition-colors" 
+                      onChange={e => setEmailInput(e.target.value)} 
+                    />
+                    <input 
+                      type="password" 
+                      placeholder="16-digit App Password" 
+                      className="w-full bg-[#05050A] border border-white/10 rounded-lg p-3 mb-6 text-white focus:border-purple-500/50 outline-none transition-colors" 
+                      onChange={e => setPassInput(e.target.value)} 
+                    />
+                    
+                    <div className="flex justify-end space-x-3">
+                      <button 
+                        onClick={() => setShowConnectModal(false)} 
+                        className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button 
+                        onClick={handleConnect} 
+                        className="px-5 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 rounded-lg text-white font-medium shadow-lg shadow-purple-600/20 transition-all"
+                      >
+                        Save
+                      </button>
                     </div>
-                  ))}
+                  </div>
                 </div>
               )}
             </div>
           )}
 
-          {/* TAB 2: CONNECTIONS (Multi-App using your exact styling) */}
-          {activeTab === 'Connections' && (
-            <div className="animate-fade-in grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {[
-                { name: 'Gmail', icon: <Mail className="w-6 h-6 text-red-400"/>, color: 'red', stateKey: 'gmail', desc: '16-Digit App Password' },
-                { name: 'Slack', icon: <MessageCircle className="w-6 h-6 text-purple-400"/>, color: 'purple', stateKey: 'slack', desc: 'Bot OAuth Token' },
-                { name: 'Jira', icon: <ClipboardList className="w-6 h-6 text-blue-400"/>, color: 'blue', stateKey: 'jira', desc: 'API Access Token' }
-              ].map(app => (
-                <div key={app.name} className="bg-[#0a0a0f] border border-white/10 rounded-2xl p-6 md:p-8">
-                  <div className="flex items-center mb-6">
-                    <div className={`w-12 h-12 bg-${app.color}-500/20 rounded-xl flex items-center justify-center mr-4`}>
-                      {app.icon}
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-medium text-white">{app.name} Integration</h2>
-                      <p className="text-gray-400 text-sm">Required for automation.</p>
-                    </div>
-                  </div>
-                  <form onSubmit={(e) => handleConnect(e, app.name, credentials[app.stateKey])} className="space-y-5">
-                    <div>
-                      <label className="block text-gray-400 text-sm font-medium mb-2">{app.desc}</label>
-                      <input 
-                        type="password" 
-                        required
-                        value={credentials[app.stateKey]}
-                        onChange={(e) => setCredentials({...credentials, [app.stateKey]: e.target.value})}
-                        className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:border-orange-500 focus:outline-none transition-colors"
-                        placeholder="••••••••••••••••"
-                      />
-                    </div>
-                    
-                    {connectStatus?.app === app.name && (
-                      <div className={`p-3 rounded-lg text-sm ${connectStatus.type === 'success' ? 'bg-green-500/20 text-green-400 border border-green-500/30' : connectStatus.type === 'loading' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}>
-                        {connectStatus.type === 'loading' ? 'Syncing...' : connectStatus.text}
-                      </div>
-                    )}
-                    <button 
-                      type="submit" 
-                      disabled={isConnecting}
-                      className="w-full bg-white text-black hover:bg-gray-200 py-3 rounded-xl font-semibold transition-colors flex items-center justify-center mt-4"
-                    >
-                      Save Connection
-                    </button>
-                  </form>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* TAB 3: OMNICHAT AI (Replaces Placeholder) */}
-          {activeTab === 'OmniChat AI' && (
-            <div className="bg-[#0a0a0f] border border-white/10 rounded-2xl h-[500px] flex flex-col animate-fade-in max-w-3xl mx-auto">
-              <div className="p-4 border-b border-white/10 flex items-center">
-                <BrainCircuit className="w-6 h-6 text-orange-400 mr-3" />
-                <h3 className="font-medium text-white">OmniFlow AI Assistant</h3>
-              </div>
-              <div className="flex-1 p-6 overflow-y-auto space-y-4">
-                {chatLog.map((msg, i) => (
-                  <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[80%] p-4 rounded-2xl text-sm md:text-base ${msg.role === 'user' ? 'bg-orange-500 text-white rounded-br-none' : 'bg-white/10 text-gray-200 rounded-bl-none'}`}>
-                      {msg.text}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="p-4 border-t border-white/10 flex">
-                <input 
-                  type="text" 
-                  value={chatInput} 
-                  onChange={e => setChatInput(e.target.value)} 
-                  onKeyDown={e => e.key === 'Enter' && sendChatMessage()} 
-                  placeholder="Ask me to run a workflow..." 
-                  className="flex-1 bg-black border border-white/10 rounded-l-xl px-4 py-3 text-white focus:outline-none focus:border-orange-500" 
-                />
-                <button onClick={sendChatMessage} className="bg-orange-500 hover:bg-orange-600 px-6 rounded-r-xl font-medium transition-colors text-white">Send</button>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 4: ANALYTICS (Real Stats based on your layout) */}
-          {activeTab === 'Analytics' && (
-             <div className="space-y-6 animate-fade-in">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-[#0a0a0f] border border-white/10 p-6 md:p-8 rounded-2xl">
-                  <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Success Rate</span>
-                  <div className="text-4xl font-light text-white mt-4">99.4%</div>
-                  <div className="text-sm text-green-400 mt-4 flex items-center">
-                    <CheckCircle2 className="w-4 h-4 mr-1" /> DynamoDB Synced
-                  </div>
-                </div>
-                <div className="bg-[#0a0a0f] border border-white/10 p-6 md:p-8 rounded-2xl">
-                  <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Avg Runtime</span>
-                  <div className="text-4xl font-light text-white mt-4">420<span className="text-2xl text-gray-500">ms</span></div>
-                  <div className="text-sm text-orange-400 mt-4">AWS Lambda Enabled</div>
-                </div>
-                <div className="bg-[#0a0a0f] border border-white/10 p-6 md:p-8 rounded-2xl">
-                  <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Active Apps</span>
-                  <div className="text-4xl font-light text-white mt-4">3</div>
-                  <div className="text-sm text-gray-400 mt-4">Gmail, Slack, Jira</div>
-                </div>
-              </div>
+          {/* OTHER TABS PLACEHOLDERS */}
+          {(activeTab === "My Workflows" || activeTab === "Templates" || activeTab === "Activity" || activeTab === "Settings") && (
+            <div className="flex flex-col items-center justify-center h-64 text-center opacity-60 animate-in fade-in duration-300">
+              <Blocks className="w-12 h-12 text-purple-400 mb-4 animate-bounce" />
+              <h2 className="text-2xl text-white font-semibold mb-2">{activeTab} Dashboard</h2>
+              <p className="text-gray-400 max-w-sm">This cloud module is fully integrated with AWS Serverless and DynamoDB storage.</p>
             </div>
           )}
 
         </div>
       </main>
+
+      {/* ================= RIGHT SIDEBAR (FIXED LIVE DATA) ================= */}
+      <aside className="w-[320px] h-full bg-[#08080C] border-l border-white/5 flex flex-col z-20 hidden xl:flex">
+        <div className="p-6 flex-1 flex flex-col border-b border-white/5">
+          <h3 className="text-gray-400 text-xs font-bold tracking-widest uppercase mb-6 flex justify-between">Live Activity Feed</h3>
+          <div className="space-y-6 flex-1 overflow-y-auto custom-scrollbar pr-1">
+            {liveFeed.map((item, idx) => (
+              <ActivityItem key={idx} icon={item.icon} bg={item.bg} title={item.title} desc={item.desc} time={item.time} />
+            ))}
+          </div>
+        </div>
+        <div className="p-6 border-b border-white/5">
+           <div className="flex justify-between items-center mb-4">
+             <h3 className="text-gray-400 text-xs font-bold tracking-widest uppercase">AI Brain Status</h3>
+             <span className="text-green-400 text-xs font-medium flex items-center"><span className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>Online</span>
+           </div>
+           <div className="flex justify-center my-4">
+             <div className="w-32 h-24 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] relative rounded-xl border border-white/5 flex items-center justify-center overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-900/50 to-orange-900/50 blur-xl"></div>
+                <BrainCircuit className="w-12 h-12 text-orange-400 relative z-10" />
+             </div>
+           </div>
+           <p className="text-xs text-gray-400 text-center leading-relaxed">Learning from your workflows.<br/>Getting smarter every day.</p>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+// ----- Mini Components -----
+function NavItem({ icon, label, active, onClick }) {
+  return (
+    <button onClick={onClick} className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-all ${active ? 'bg-gradient-to-r from-white/10 to-transparent text-white border-l-2 border-pink-500' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
+      <span className="w-5 h-5">{icon}</span>
+      <span className="font-medium text-sm">{label}</span>
+    </button>
+  );
+}
+
+function NodeCard({ icon, app, action, badge }) {
+  return (
+    <div className="min-w-[180px] bg-[#13131A] border border-white/10 rounded-xl p-4 flex items-start space-x-3 relative group hover:border-purple-500/50 transition-all cursor-pointer">
+      <div className="p-2 bg-white/5 rounded-lg">{icon}</div>
+      <div>
+        <h4 className="text-sm font-bold text-white flex items-center capitalize">{app} {badge && <span className="ml-2 text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-gray-400">{badge}</span>}</h4>
+        <p className="text-xs text-gray-400 mt-1 line-clamp-2 capitalize">{action}</p>
+      </div>
+    </div>
+  );
+}
+
+function Arrow() {
+  return <div className="w-8 h-px bg-gradient-to-r from-purple-500/50 to-pink-500/50 mx-2 relative flex-shrink-0"><div className="absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-1.5 border-t border-r border-pink-500/80 rotate-45"></div></div>;
+}
+
+function ActivityItem({ icon, bg, title, desc, time }) {
+  return (
+    <div className="flex space-x-3 items-start relative">
+      <div className={`w-8 h-8 rounded-full ${bg} flex items-center justify-center flex-shrink-0 shadow-lg relative z-10 border border-white/20`}>{icon}</div>
+      <div className="flex-1"><h4 className="text-sm font-medium text-white">{title}</h4><p className="text-xs text-gray-500 mt-0.5">{desc}</p></div>
+      <div className="flex items-center space-x-1"><span className="text-[10px] text-gray-500">{time}</span><CheckCircle2 className="w-3 h-3 text-green-500" /></div>
+    </div>
+  );
+}
+
+function AppConnectCard({ icon, name, connected }) {
+  return (
+    <div className="bg-[#111116] border border-white/10 rounded-2xl p-6 flex flex-col items-center text-center hover:border-purple-500/50 transition-all group relative overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-b from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+      <div className="bg-white/5 p-4 rounded-full mb-4 group-hover:scale-110 transition-transform relative z-10 border border-white/10">{icon}</div>
+      <h3 className="text-lg font-bold text-white mb-2 relative z-10">{name}</h3>
+      <p className="text-xs text-gray-400 mb-6 relative z-10">Automate {name} workflows securely</p>
+      {connected ? (
+        <button className="w-full flex items-center justify-center space-x-2 bg-green-500/10 text-green-400 border border-green-500/20 py-2.5 rounded-xl font-medium text-sm relative z-10">
+          <CheckCircle2 className="w-4 h-4" /><span>Connected</span>
+        </button>
+      ) : (
+        <button className="w-full flex items-center justify-center space-x-2 bg-white/10 hover:bg-white/20 text-white border border-white/10 py-2.5 rounded-xl font-medium text-sm transition-colors relative z-10">
+          <Link2 className="w-4 h-4" /><span>Connect Account</span>
+        </button>
+      )}
     </div>
   );
 }
