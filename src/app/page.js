@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { Bot, Mail, Menu, X, Zap, Link as LinkIcon, Activity, Database, BrainCircuit, Search, MessageSquare, Slack, Trello, Cpu, Play } from 'lucide-react';
+import { Bot, Mail, X, Zap, Link as LinkIcon, Activity, BrainCircuit, Search, MessageSquare, Slack, Trello, Cpu, Play } from 'lucide-react';
 import axios from 'axios';
 
 export default function OmniFlowOriginal() {
